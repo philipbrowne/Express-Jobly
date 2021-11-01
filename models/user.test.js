@@ -14,7 +14,22 @@ const {
   commonAfterAll,
 } = require('./_testCommon');
 
-beforeAll(commonBeforeAll);
+let job1Id;
+let job2Id;
+
+beforeAll(async () => {
+  await commonBeforeAll();
+  const jobsRes = await db.query(`
+    INSERT INTO jobs(title, salary, equity, company_handle)
+    VALUES ('J1', 100000, '0', 'c1'),
+    ('J2', 50000, '0', 'c2')
+    RETURNING id, title, salary, equity, company_handle AS "companyHandle"`);
+  job1Id = jobsRes.rows[0].id;
+  job2Id = jobsRes.rows[1].id;
+  await db.query(
+    `INSERT INTO applications (username, job_id) VALUES ('u1', ${job1Id})`
+  );
+});
 beforeEach(commonBeforeEach);
 afterEach(commonAfterEach);
 afterAll(commonAfterAll);
@@ -140,12 +155,41 @@ describe('get', function () {
       lastName: 'U1L',
       email: 'u1@email.com',
       isAdmin: true,
+      applications: [job1Id],
     });
   });
 
   test('not found if no such user', async function () {
     try {
       await User.get('nope');
+      fail();
+    } catch (err) {
+      expect(err instanceof NotFoundError).toBeTruthy();
+    }
+  });
+});
+
+/************************************** apply */
+
+describe('apply to job', function () {
+  test('works for applying', async function () {
+    let application = await User.apply('u1', job2Id);
+    expect(application).toEqual({
+      username: 'u1',
+      job_id: job2Id,
+    });
+  });
+  test('doesnt work with invalid username', async function () {
+    try {
+      await User.apply('invalid', job2Id);
+      fail();
+    } catch (err) {
+      expect(err instanceof NotFoundError).toBeTruthy();
+    }
+  });
+  test('doesnt work with invalid job id', async function () {
+    try {
+      await User.apply('u1', 0);
       fail();
     } catch (err) {
       expect(err instanceof NotFoundError).toBeTruthy();
@@ -167,6 +211,7 @@ describe('update', function () {
     let job = await User.update('u1', updateData);
     expect(job).toEqual({
       username: 'u1',
+      applications: [job1Id],
       ...updateData,
     });
   });
@@ -181,6 +226,7 @@ describe('update', function () {
       lastName: 'U1L',
       email: 'u1@email.com',
       isAdmin: true,
+      applications: [job1Id],
     });
     const found = await db.query("SELECT * FROM users WHERE username = 'u1'");
     expect(found.rows.length).toEqual(1);
