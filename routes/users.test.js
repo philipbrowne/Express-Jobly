@@ -319,7 +319,7 @@ describe('PATCH /users/:username', () => {
   });
 });
 
-/************************************** PATCH /users/:username/jobs/:id */
+/************************************** POST /users/:username/jobs/:id */
 
 describe('POST /users/:username/jobs/:id', () => {
   test('works for correct user or admin', async function () {
